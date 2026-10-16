@@ -1,0 +1,11 @@
+{
+  "name": "Spina Schrift",
+  "short_name": "Spina",
+  "description": "Eine Glyphenschrift für Deutsch, geschrieben auf einer Wirbelsäule.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#E3DED6",
+  "theme_color": "#BE3527",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#BE3527">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>Spina Schrift</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700&family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one working column — level + key, painted canvas, text, glyph keyboard, key sheet, then reference */
+:root{
+  --bg:#E3DED6; --canvas:#CEC6B9; --canvas-grain:#C4BBAD; --ink:#26221E; --muted:#6B6359;
+  --red:#BE3527; --line:#B5AB9C; --key:#ECE8E1; --key-press:#DCD5CA; --ok:#3F6B45; --warn:#9A5B12;
+  --display:"Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  --body:"Newsreader", Georgia, "Times New Roman", serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#1C1A18; --canvas:#2A2623; --canvas-grain:#302B27; --ink:#EDE7DD; --muted:#A1978A;
+  --red:#E35A4B; --line:#3E3833; --key:#25221F; --key-press:#34302B; --ok:#8DBB8F; --warn:#E0A55A; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#1C1A18; --canvas:#2A2623; --canvas-grain:#302B27; --ink:#EDE7DD; --muted:#A1978A;
+  --red:#E35A4B; --line:#3E3833; --key:#25221F; --key-press:#34302B; --ok:#8DBB8F; --warn:#E0A55A; color-scheme:dark}
+
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.5}
+.wrap{max-width:960px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:20px}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(2.4rem,7vw,3.6rem);line-height:1;margin:0;letter-spacing:-.02em}
+h1 span{color:var(--red)}
+.lede{margin:6px 0 0;max-width:54ch;color:var(--muted);font-style:italic}
+.label{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+
+.keybox{display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--line);border-radius:6px;background:var(--key)}
+.keyline{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.keyline input{flex:1 1 220px;min-width:0;font-family:var(--mono);font-size:16px;letter-spacing:.06em;padding:10px 12px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink)}
+.hint{font-family:var(--mono);font-size:12px;color:var(--muted);margin:0}
+.hint.on{color:var(--ok)} .hint.warn{color:var(--warn)}
+.levelnote{margin:0;max-width:62ch;font-size:15px}
+
+.canvas{--gbg:var(--canvas);background:var(--canvas);background-image:repeating-linear-gradient(45deg,transparent 0 3px,var(--canvas-grain) 3px 4px),repeating-linear-gradient(-45deg,transparent 0 3px,var(--canvas-grain) 3px 4px);border-radius:2px;min-height:220px;padding:22px 18px;overflow-x:auto;box-shadow:inset 0 0 0 1px var(--line)}
+.out{display:flex;flex-wrap:wrap;gap:6px 4px;align-items:flex-start}
+.out svg{display:block;flex:none}
+.empty{color:var(--muted);font-style:italic;padding:40px 4px}
+
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.seg button,.btn{font-family:var(--mono);font-size:12px;letter-spacing:.04em;background:transparent;color:var(--ink);border:0;padding:8px 14px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.seg button:disabled{opacity:.4;cursor:not-allowed}
+.btn{border:1px solid var(--line);border-radius:999px}
+.btn:hover,.seg button:hover:not(:disabled):not([aria-pressed="true"]){background:var(--key-press)}
+.toggles{display:flex;flex-wrap:wrap;gap:8px}
+button:focus-visible,textarea:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+
+.textbox{display:flex;flex-direction:column;gap:6px}
+textarea{width:100%;box-sizing:border-box;min-height:84px;resize:vertical;font-family:var(--body);font-size:1.25rem;line-height:1.4;color:var(--ink);background:var(--key);border:1px solid var(--line);border-radius:4px;padding:12px 14px}
+.readout{min-height:84px;box-sizing:border-box;font-family:var(--body);font-size:1.25rem;line-height:1.4;background:var(--key);border:1px dashed var(--line);border-radius:4px;padding:12px 14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.readout:empty::before{content:"Tap the figures from your painting, top to bottom.";color:var(--muted);font-style:italic}
+.row-end{display:flex;gap:8px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
+.status{font-family:var(--mono);font-size:12px;color:var(--muted);margin-right:auto;min-width:0;overflow-wrap:anywhere}
+
+.kb{--gbg:var(--key);display:flex;flex-direction:column;gap:5px;user-select:none;-webkit-user-select:none}
+.kr{display:flex;gap:4px;justify-content:center}
+.kgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:4px}
+.key{flex:1 1 0;max-width:58px;min-width:0;height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:var(--key);border:1px solid var(--line);border-radius:5px;color:var(--ink);cursor:pointer;padding:2px 0;touch-action:manipulation}
+.kgrid .key{max-width:none;height:62px}
+.key:active{background:var(--key-press);transform:translateY(1px)}
+.key svg{width:100%;max-width:40px;height:auto}
+.key small{font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1}
+.key.wide{flex:4 1 0;max-width:260px}
+.key.mid{flex:1.6 1 0;max-width:92px;font-family:var(--mono);font-size:13px}
+
+details.sheet{border:1px solid var(--line);border-radius:6px;padding:12px 14px;background:var(--key)}
+details.sheet summary{cursor:pointer;font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sheetgrid{--gbg:var(--canvas);display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-top:12px}
+.sheetrow{display:flex;align-items:center;gap:6px;background:var(--canvas);border-radius:3px;padding:6px 8px}
+.sheetrow b{font-family:var(--mono);font-weight:500;width:1.6em;flex:none}
+.sheetrow svg{width:30px;height:auto;flex:none}
+
+section.alpha{display:flex;flex-direction:column;gap:18px;margin-top:10px;border-top:1px solid var(--line);padding-top:22px}
+h2{font-family:var(--display);font-weight:700;font-size:1.5rem;margin:0}
+.group{display:flex;flex-direction:column;gap:8px}
+.group p{margin:0;max-width:62ch}
+.grid{--gbg:var(--canvas);display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:6px}
+.cell{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px 8px;background:var(--canvas);border-radius:3px}
+.cell b{font-family:var(--mono);font-weight:500;font-size:13px}
+.cell svg{width:48px;height:auto}
+.note{color:var(--muted);font-size:15px;max-width:62ch;margin:0}
+dl.levels{margin:0;display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;max-width:70ch}
+dl.levels dt{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--red)}
+dl.levels dd{margin:0}
+@media (max-width:520px){dl.levels{grid-template-columns:1fr}dl.levels dd{margin-bottom:8px}}
+</style>
+<style>
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="label">Eine Schrift aus dem Fluss · German, written on a spine</div>
+    <h1>Spina<span>.</span></h1>
+    <p class="lede">Your red marks as an alphabet for German, with three levels of secrecy.</p>
+  </header>
+
+  <div class="keybox">
+    <div class="seg" role="group" aria-label="Level">
+      <button id="lv-plain" aria-pressed="false">Schrift</button>
+      <button id="lv-raetsel" aria-pressed="true">Rätsel</button>
+      <button id="lv-tresor" aria-pressed="false">Tresor</button>
+    </div>
+    <p class="levelnote" id="levelnote"></p>
+    <div id="keyarea" style="display:flex;flex-direction:column;gap:8px">
+      <label class="label" for="key">Schlüssel</label>
+      <div class="keyline">
+        <input id="key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="your secret passphrase">
+        <button class="btn" id="showkey" aria-pressed="false">Show</button>
+        <button class="btn" id="newkey">New key</button>
+        <button class="btn" id="t-noise" aria-pressed="true" hidden>Decoys ✓</button>
+      </div>
+      <p class="hint" id="keyhint"></p>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="seg" role="group" aria-label="Direction">
+      <button id="d-write" aria-pressed="true">Write</button>
+      <button id="d-read" aria-pressed="false" disabled>Read</button>
+    </div>
+    <div class="seg" role="group" aria-label="Layout">
+      <button id="m-cols" aria-pressed="true">Columns</button>
+      <button id="m-spine" aria-pressed="false">One spine</button>
+    </div>
+  </div>
+
+  <div class="canvas" aria-label="Glyph output"><div class="out" id="out"></div></div>
+
+  <div class="controls">
+    <span class="label" id="canvaslabel">What you paint</span>
+    <div class="toggles">
+      <button class="btn" id="t-hand" aria-pressed="true">Hand ✓</button>
+      <button class="btn" id="t-lat" aria-pressed="false">Glyph IDs</button>
+    </div>
+  </div>
+
+  <div class="textbox" id="writebox">
+    <label class="label" for="txt">Deutsch</label>
+    <textarea id="txt" spellcheck="false" autocomplete="off"></textarea>
+  </div>
+  <div class="textbox" id="readbox" hidden>
+    <span class="label">Entschlüsselt</span>
+    <div class="readout" id="readout" aria-live="polite"></div>
+  </div>
+  <div class="row-end">
+    <span class="status" id="status"></span>
+    <button class="btn" id="copy">Copy text</button>
+    <button class="btn" id="clear">Clear</button>
+  </div>
+
+  <div class="kb" id="kb" aria-label="Spina keyboard"></div>
+
+  <details class="sheet" id="sheet" hidden>
+    <summary>Schlüsselblatt · your private key sheet</summary>
+    <p class="note" style="margin-top:10px">Which figures stand for which letter under your current key. Keep this to yourself. The tool cycles through the variants in order; when painting by hand you can also pick any of a letter's figures.</p>
+    <div class="sheetgrid" id="sheetgrid"></div>
+  </details>
+
+  <section class="alpha">
+    <h2>The three levels</h2>
+    <dl class="levels">
+      <dt>Schrift</dt><dd>One fixed figure per letter, word by word. Anyone with the chart below reads it at once; without the chart, a patient puzzler cracks it by counting.</dd>
+      <dt>Rätsel</dt><dd>Your passphrase secretly reassigns 57 figures to the letters. Common letters get several figures (E has four), words run together on one spine, and the chart below no longer applies. Hard, but solvable by a determined group with enough text, like the Zodiac 408 cipher. One wrongly painted figure only spoils one letter.</dd>
+      <dt>Tresor</dt><dd>The passphrase shuffles the alphabet and shifts every letter by a different amount, with decoy figures mixed in. Without the passphrase, practically unreadable. One wrongly painted figure scrambles everything after it.</dd>
+    </dl>
+    <p class="note">For a Rätsel that is solvable in a lifetime: use the same key for the whole series, aim for 300 to 500 figures across all works, and leave one foothold, for example a title that is the first words of the hidden text. Use a long passphrase or the New key button, so nobody can guess the key and skip the puzzle.</p>
+
+    <h2>Plain alphabet (Schrift)</h2>
+    <div id="chart" style="display:flex;flex-direction:column;gap:22px"></div>
+    <p class="note">Reading direction: top to bottom along each spine, columns left to right. A spine opens and closes with a free dot. In Rätsel mode some figures carry a small open bead at the foot of the spine; those are separate figures.</p>
+  </section>
+</div>
+
+<script>
+(function(){
+// ---------- glyph primitives ----------
+const h=(y,w)=>`M${30-w} ${y}H${30+w}`;
+const tick=(y,w,l)=>`M${30-w} ${y-l}V${y+l}M${30+w} ${y-l}V${y+l}`;
+const fork=(y,w)=>`M${30-w} ${y}L${25-w} ${y-5}M${30-w} ${y}L${25-w} ${y+5}M${30+w} ${y}L${35+w} ${y-5}M${30+w} ${y}L${35+w} ${y+5}`;
+const up=(t,b,w)=>`M${30-w} ${b}L30 ${t}L${30+w} ${b}`;
+const down=(t,b,w)=>`M${30-w} ${t}L30 ${b}L${30+w} ${t}`;
+const ex=(t,b,w)=>`M${30-w} ${t}L${30+w} ${b}M${30+w} ${t}L${30-w} ${b}`;
+const dia=(y,w,hh)=>`M30 ${y-hh}L${30+w} ${y}L30 ${y+hh}L${30-w} ${y}Z`;
+const cup=y=>`M17 ${y-9}Q30 ${y+15} 43 ${y-9}`;
+const cap=y=>`M17 ${y+9}Q30 ${y-15} 43 ${y+9}`;
+const br=(y,dx,hh)=>`M${33-dx} ${y-hh}Q${26-dx} ${y} ${33-dx} ${y+hh}M${27+dx} ${y-hh}Q${34+dx} ${y} ${27+dx} ${y+hh}`;
+const mea=y=>`M27 ${y+9}H11V${y-9}H23V${y+4}H16V${y-4}M33 ${y+9}H49V${y-9}H37V${y+4}H44V${y-4}`;
+const hatch=y=>[[-6,4],[-3,8],[0,12],[3,8],[6,4]].map(([o,w])=>h(y+o,w)).join('');
+const D=(y,dx)=>[[30-dx,y],[30+dx,y]];
+
+const G={
+ A:{p:[up(6,26,14),h(32,6)]}, E:{p:[ex(8,32,12)]}, I:{p:[h(20,8)],d:D(20,16)},
+ O:{p:[dia(20,11,12)]}, U:{p:[cup(18)]},
+ 'Ä':{p:[up(6,26,14),h(32,6)],d:D(18,21)}, 'Ö':{p:[dia(20,11,12)],d:D(20,19)}, 'Ü':{p:[cup(18)],d:D(24,19)},
+ B:{p:[h(13,12),h(27,12)]}, C:{p:[cap(22)]}, D:{p:[h(13,12),tick(13,12,4),h(27,12),tick(27,12,4)]},
+ F:{p:[h(20,12),fork(20,12)]}, G:{p:[mea(20)]}, H:{p:[h(10,6),h(20,11),h(30,16)]},
+ J:{p:[h(13,12)],d:D(26,12)}, K:{p:[h(10,13),down(16,32,11)]}, L:{p:[h(20,17)]},
+ M:{p:[h(10,12),h(20,12),h(30,12)]}, N:{p:[h(20,12),tick(20,12,5)]}, P:{p:[br(20,17,10),h(20,7)]},
+ Q:{p:[dia(15,8,9),h(31,12)]}, R:{p:[down(7,30,13)]}, S:{p:[hatch(20)]},
+ T:{p:[h(10,13),'M17 10V20M43 10V20']}, V:{p:[down(5,19,12),down(19,33,12)]},
+ W:{p:[up(5,19,12),up(19,33,12)]}, X:{p:[ex(5,25,11),h(32,13)]},
+ Y:{p:[h(28,12),'M18 28V16M42 28V16']}, Z:{p:['M14 12H30M30 28H46']},
+ 'ß':{p:[hatch(20),br(20,19,9)]},
+ '_':{p:[h(20,5)],d:[[18,12],[42,12],[18,28],[42,28]]},
+ '.':{ns:1,d:[[20,20],[30,20],[40,20]]}, ',':{ns:1,d:[[24,20],[36,20]]},
+ '?':{ns:1,p:[cap(18)],d:[[30,32]]}, '!':{ns:1,d:[[30,8],[30,20],[30,32]]},
+ ':':{ns:1,d:[[30,13],[30,27]]}, '-':{ns:1,p:[h(20,7)]}
+};
+const NF=[
+ s=>[`M30 14H${30+s*16}V26`],
+ s=>[`M30 20H${30+s*14}L${30+s*19} 15M${30+s*14} 20L${30+s*19} 25`],
+ s=>[`M30 13H${30+s*12}M30 27H${30+s*12}`],
+ s=>[`M30 27H${30+s*16}V12H${30+s*8}V20`],
+ s=>[`M${30+s*9} 9Q${30+s*21} 20 ${30+s*9} 31`,`M30 20H${30+s*6}`]
+];
+const NK={0:[3,-1],1:[0,1],2:[4,-1],3:[1,1],4:[2,-1],5:[0,-1],6:[3,1],7:[1,-1],8:[4,1],9:[2,1]};
+for(let n=0;n<10;n++){const [f,s]=NK[n]; G[String(n)]={p:NF[f](s),d:[[30-s*11,20]]};}
+const glyphOf=id=>G[id.endsWith('*')?id.slice(0,-1):id];
+
+// ---------- randomness from the passphrase ----------
+const rotl=(x,k)=>(x<<k)|(x>>>(32-k));
+function xoshiro(s){let [a,b,c,d]=s;if(!(a|b|c|d))a=1;return()=>{const r=Math.imul(rotl(Math.imul(b,5),7),9),t=b<<9;c^=a;d^=b;b^=c;a^=d;c^=t;d=rotl(d,11);return (r>>>0)/4294967296}}
+function fnv(str){let x=2166136261;for(const c of str){x^=c.codePointAt(0);x=Math.imul(x,16777619)}return x>>>0}
+async function seedFrom(str){
+  try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));return Array.from(new Uint32Array(b).slice(0,4))}
+  catch(e){return [fnv(str),fnv(str+'1'),fnv(str+'2'),fnv(str+'3')]}
+}
+function shuffle(arr,r){const a=arr.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function rngLocal(seed){let s=seed>>>0||1;return()=>{s^=s<<13;s^=s>>>17;s^=s<<5;return((s>>>0)%100000)/100000}}
+
+// ---------- Rätsel: secret homophonic substitution ----------
+const RLET=[...'ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜß0123456789'];
+const HOMO={E:4,N:3,I:3,S:3,R:3,A:2,T:2,D:2,H:2,U:2,L:2};
+const BASEPOOL=[...'ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜß0123456789','_'];
+const POOL=[...BASEPOOL,...BASEPOOL.map(c=>c+'*')]; // 82 figures; '*' = beaded variant
+async function buildRaetsel(pass){
+  const r=xoshiro(await seedFrom(pass+'|spina-raetsel-v1'));
+  const order=shuffle(POOL,r); let k=0;
+  const enc={},dec={};
+  RLET.forEach(L=>{const n=HOMO[L]||1;enc[L]=[];for(let i=0;i<n;i++){const g=order[k++];enc[L].push(g);dec[g]=L}});
+  return {enc,dec,used:POOL.filter(g=>g in dec)};
+}
+function raetselEncrypt(P,T){const cnt={};return P.map(c=>{const v=T.enc[c];const i=cnt[c]||0;cnt[c]=i+1;return v[i%v.length]})}
+function raetselDecrypt(X,T){return X.map(g=>T.dec[g]||'?')}
+const raetselPlain=t=>[...t.toUpperCase()].filter(c=>RLET.includes(c));
+
+// ---------- Tresor: keyed autokey with decoys ----------
+const RING=[...'ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜß0123456789','_','.',',','?','!',':','-'];
+const N=RING.length;
+const RI=Object.fromEntries(RING.map((c,i)=>[c,i]));
+function normKey(k){return [...k.toUpperCase().replace(/\s+/g,'_')].filter(c=>c in RI)}
+async function buildTresor(pass){
+  const K=normKey(pass);
+  const r=xoshiro(await seedFrom(pass+'|spina-tresor-v1'));
+  const seen=new Set(),a=[];
+  K.forEach(c=>{if(!seen.has(c)){seen.add(c);a.push(c)}});
+  RING.forEach(c=>{if(!seen.has(c))a.push(c)});
+  const C=shuffle(a,r), CI=Object.fromEntries(C.map((c,i)=>[c,i]));
+  const r2=xoshiro(await seedFrom(pass+'|spina-decoy-v1'));
+  const decoys=Array.from({length:4000},()=>RING[Math.floor(r2()*N)]);
+  return {K:K.length?K:['_'],C,CI,decoys};
+}
+const isDecoy=(ki,i)=>((ki*7+i*3+1)%5)===0;
+function tresorEncrypt(P,T,noise){
+  const out=[];
+  P.forEach((p,i)=>{const k=i<T.K.length?T.K[i]:P[i-T.K.length],ki=RI[k];out.push(T.C[(RI[p]+ki)%N]);if(noise&&isDecoy(ki,i))out.push(T.decoys[i%T.decoys.length])});
+  return out;
+}
+function tresorDecrypt(X,T,noise){
+  const P=[];let j=0,i=0;
+  while(j<X.length){const k=i<T.K.length?T.K[i]:P[i-T.K.length],ki=RI[k];
+    const ci=T.CI[X[j]];P.push(ci===undefined?'?':RING[((ci-ki)%N+N)%N]);j++;
+    if(noise&&isDecoy(ki,i))j++;i++}
+  return P;
+}
+const toPlain=t=>[...t.toUpperCase().replace(/\s+/g,' ').trim().replace(/ /g,'_')];
+const show=P=>P.join('').replace(/_/g,' ');
+
+// ---------- drawing ----------
+function jit(d,r){return d.replace(/-?\d+(\.\d+)?/g,m=>(parseFloat(m)+(r()-.5)*1.7).toFixed(1))}
+function glyphMarkup(id,dy,seed,hand){
+  const g=glyphOf(id);let s='';
+  if(!g)return `<circle cx="30" cy="${dy+20}" r="4" fill="none" stroke="var(--red)" stroke-width="2"/>`;
+  const r=rngLocal(seed);
+  (g.p||[]).forEach(d=>{s+=`<path d="${hand?jit(d,r):d}" transform="translate(0 ${dy})"/>`});
+  (g.d||[]).forEach(([x,y])=>{const j=hand?(r()-.5)*1.2:0;s+=`<circle cx="${x+j}" cy="${dy+y+j}" r="2.4" fill="var(--red)" stroke="none"/>`});
+  if(id.endsWith('*'))s+=`<circle cx="30" cy="${dy+37}" r="3.3" fill="var(--gbg)" stroke-width="2.2"/>`;
+  return s;
+}
+const label=id=>id==='_'?'·':id.endsWith('*')?id.slice(0,-1)+'°':id;
+function column(chars,{hand,lat,startSeed}){
+  const CH=40,GAP=22,pad=12,W=lat?80:60;
+  let y=pad,parts='',spine='',run=null,labels='';
+  const closeRun=yEnd=>{if(run===null)return;
+    spine+=`<line x1="30" y1="${run-3}" x2="30" y2="${yEnd+3}" stroke-width="2"/><circle cx="30" cy="${run-9}" r="2.2" fill="var(--red)" stroke="none"/><circle cx="30" cy="${yEnd+9}" r="2.2" fill="var(--red)" stroke="none"/>`;run=null};
+  chars.forEach((c,i)=>{
+    if(c===' '){closeRun(y);y+=GAP;return}
+    const g=glyphOf(c),ns=!g||g.ns;
+    if(ns)closeRun(y);else if(run===null)run=y;
+    parts+=`<g>${glyphMarkup(c,y,Math.imul(startSeed+i+1,2654435761)+c.charCodeAt(0)*97,hand)}</g>`;
+    if(lat)labels+=`<text x="64" y="${y+24}" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--muted)" stroke="none">${label(c)}</text>`;
+    y+=CH;
+  });
+  closeRun(y);
+  const H=y+pad,sc=.8;
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W*sc}" height="${H*sc}" fill="none" stroke="var(--red)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${spine}${parts}${labels}</svg>`;
+}
+function iconSvg(id,spine=true){
+  const g=glyphOf(id),sp=spine&&g&&!g.ns?'<line x1="30" y1="0" x2="30" y2="40" stroke-width="2" opacity=".45"/>':'';
+  return `<svg viewBox="0 0 60 42" fill="none" stroke="var(--red)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${sp}${glyphMarkup(id,0,id.charCodeAt(0),false)}</svg>`;
+}
+function drawStream(X){
+  if(S.mode==='spine')return column(X,{hand:S.hand,lat:S.lat,startSeed:0});
+  let html='';for(let i=0;i<X.length;i+=10)html+=column(X.slice(i,i+10),{hand:S.hand,lat:S.lat,startSeed:i});return html;
+}
+
+// ---------- state ----------
+const $=id=>document.getElementById(id);
+const S={level:'raetsel',mode:'cols',hand:true,lat:false,dir:'write',noise:true,pass:'',T:null,R:null,buf:[]};
+const ta=$('txt'),out=$('out');
+const keyed=()=>S.level!=='plain'&&S.pass.length>0&&(S.level==='raetsel'?!!S.R:!!S.T);
+
+function render(){
+  const st=$('status');
+  if(S.dir==='read'){
+    out.innerHTML=S.buf.length?drawStream(S.buf):'<div class="empty">The figures you tap appear here.</div>';
+    const P=S.level==='raetsel'?raetselDecrypt(S.buf,S.R):tresorDecrypt(S.buf,S.T,S.noise);
+    $('readout').textContent=show(P);
+    st.textContent=S.buf.length?`${S.buf.length} figures`:'';
+    return;
+  }
+  const raw=ta.value;
+  if(!raw.trim()){out.innerHTML='<div class="empty">Type German below or tap the keyboard.</div>';st.textContent='';save();return}
+  if(S.level==='plain'){
+    const P=toPlain(raw),unknown=[...new Set(P.filter(c=>!G[c]))];
+    const words=show(P).split(' ');
+    if(S.mode==='cols'){let seed=0,html='';words.forEach(w=>{html+=column([...w],{hand:S.hand,lat:S.lat,startSeed:seed});seed+=w.length+1});out.innerHTML=html}
+    else out.innerHTML=column([...show(P)],{hand:S.hand,lat:S.lat,startSeed:0});
+    st.textContent=(unknown.length?`No figure for ${unknown.join(' ')} (shown as ○) · `:'')+`${P.filter(c=>c!=='_').length} figures`;
+  } else if(!keyed()){
+    out.innerHTML='<div class="empty">Enter a passphrase above, or tap New key.</div>';st.textContent='';
+  } else if(S.level==='raetsel'){
+    const P=raetselPlain(raw),X=raetselEncrypt(P,S.R);
+    out.innerHTML=drawStream(X);
+    const ok=raetselDecrypt(X,S.R).join('')===P.join('');
+    st.textContent=`${X.length} figures · spaces and punctuation dropped`+(ok?' · reads back correctly':' · check failed');
+  } else {
+    const P=toPlain(raw).filter(c=>c in RI),X=tresorEncrypt(P,S.T,S.noise);
+    out.innerHTML=drawStream(X);
+    const ok=show(tresorDecrypt(X,S.T,S.noise))===show(P);
+    st.textContent=`${X.length} figures`+(ok?' · reads back correctly':' · check failed');
+  }
+  save();
+}
+function save(){try{localStorage.setItem('spina-level',S.level);if(S.level==='plain')localStorage.setItem('spina-text',ta.value);else localStorage.removeItem('spina-text')}catch(e){}}
+
+// ---------- keyboard ----------
+let layer='abc';
+function qwertz(){
+  const r4=S.dir==='read'?['123',',','_','.','?']:['123',',','SPACE','.','?'];
+  const n3=S.dir==='read'?['ABC','_','⌫']:['ABC','SPACE','⌫'];
+  return layer==='abc'
+   ?[['Q','W','E','R','T','Z','U','I','O','P','Ü'],['A','S','D','F','G','H','J','K','L','Ö','Ä'],['Y','X','C','V','B','N','M','ß','⌫'],r4]
+   :[['1','2','3','4','5','6','7','8','9','0'],['-',':','!','?',',','.'],n3];
+}
+function mkKey(k){
+  const b=document.createElement('button');b.type='button';b.className='key';
+  if(k==='SPACE'){b.classList.add('wide');b.innerHTML='<small>Leer</small>';b.dataset.k=' ';b.setAttribute('aria-label','Space')}
+  else if(k==='⌫'){b.classList.add('mid');b.textContent='⌫';b.dataset.k='BS';b.setAttribute('aria-label','Delete')}
+  else if(k==='123'||k==='ABC'){b.classList.add('mid');b.textContent=k;b.dataset.k='L';b.setAttribute('aria-label',k==='123'?'Numbers and marks':'Letters')}
+  else{b.innerHTML=iconSvg(k)+`<small>${label(k)}</small>`;b.dataset.k=k;b.setAttribute('aria-label','Figure '+label(k))}
+  return b;
+}
+function buildKb(){
+  const kb=$('kb');kb.innerHTML='';
+  if(S.dir==='read'&&S.level==='raetsel'&&S.R){
+    const g=document.createElement('div');g.className='kgrid';
+    S.R.used.forEach(id=>{const b=mkKey(id);b.querySelector('small').textContent='';g.appendChild(b)});
+    kb.appendChild(g);
+    const r=document.createElement('div');r.className='kr';r.appendChild(mkKey('⌫'));kb.appendChild(r);
+    return;
+  }
+  qwertz().forEach(row=>{const r=document.createElement('div');r.className='kr';row.forEach(k=>r.appendChild(mkKey(k)));kb.appendChild(r)});
+}
+let sel={s:0,e:0};
+const remember=()=>{sel={s:ta.selectionStart,e:ta.selectionEnd}};
+['keyup','click','select','input'].forEach(ev=>ta.addEventListener(ev,remember));
+ta.addEventListener('input',render);
+function press(k){
+  if(k==='L'){layer=layer==='abc'?'num':'abc';buildKb();return}
+  if(S.dir==='read'){if(k==='BS')S.buf.pop();else if(k!==' ')S.buf.push(k);render();return}
+  let s=Math.min(sel.s,ta.value.length),en=Math.min(sel.e,ta.value.length);
+  if(k==='BS'){if(s!==en)ta.setRangeText('',s,en,'end');else if(s>0){ta.setRangeText('',s-1,s,'end');s--}sel={s:Math.min(s,en),e:Math.min(s,en)}}
+  else{ta.setRangeText(k,s,en,'end');sel={s:s+k.length,e:s+k.length}}
+  render();
+}
+$('kb').addEventListener('click',e=>{const b=e.target.closest('.key');if(b)press(b.dataset.k)});
+document.addEventListener('keydown',e=>{
+  if(S.dir!=='read'||S.level==='raetsel'||e.target.closest('input,textarea')||e.metaKey||e.ctrlKey||e.altKey)return;
+  if(e.key==='Backspace'){e.preventDefault();press('BS');return}
+  const c=e.key===' '?'_':e.key.toUpperCase();
+  if(c in RI){e.preventDefault();press(c)}
+});
+
+// ---------- key sheet ----------
+function buildSheet(){
+  const sh=$('sheet');
+  if(S.level!=='raetsel'||!S.R){sh.hidden=true;return}
+  sh.hidden=false;
+  $('sheetgrid').innerHTML=RLET.map(L=>`<div class="sheetrow"><b>${L}</b>${S.R.enc[L].map(id=>iconSvg(id)).join('')}</div>`).join('');
+}
+
+// ---------- controls ----------
+const setPressed=(id,v)=>$(id).setAttribute('aria-pressed',v);
+const NOTES={
+  plain:'One fixed figure per letter. Readable by anyone who has the chart.',
+  raetsel:'Secret alphabet with several figures for common letters. Hard, but solvable by determined puzzlers. Use one key for the whole series.',
+  tresor:'Keyword cipher with decoys. Without the passphrase, practically unreadable.'
+};
+function refreshKeyUI(){
+  $('keyarea').hidden=S.level==='plain';
+  $('t-noise').hidden=S.level!=='tresor';
+  $('levelnote').textContent=NOTES[S.level];
+  const hint=$('keyhint');
+  $('d-read').disabled=!keyed();
+  if(S.level==='plain'){hint.textContent='';}
+  else if(!S.pass){hint.className='hint';hint.textContent='No passphrase yet.';}
+  else{const len=S.pass.length;hint.className=len<12?'hint warn':'hint on';hint.textContent=len<12?`${len} characters · a short or common phrase can be guessed by trying words. 12+ or New key is safer.`:`Key set · ${len} characters. Store it somewhere safe; without it the works cannot be read.`}
+  if(!keyed()&&S.dir==='read')setDir('write',true);
+}
+function setLevel(l){
+  S.level=l;['plain','raetsel','tresor'].forEach(x=>setPressed('lv-'+x,x===l));
+  $('m-cols').textContent=l==='plain'?'Word columns':'Columns of 10';
+  S.buf=[];refreshKeyUI();buildSheet();buildKb();render();
+}
+['plain','raetsel','tresor'].forEach(x=>$('lv-'+x).onclick=()=>setLevel(x));
+function setDir(d,quiet){
+  if(d==='read'&&!keyed())return;
+  S.dir=d;setPressed('d-write',d==='write');setPressed('d-read',d==='read');
+  $('writebox').hidden=d==='read';$('readbox').hidden=d!=='read';
+  $('copy').textContent=d==='read'?'Copy reading':'Copy text';
+  $('canvaslabel').textContent=d==='read'?'Figures from the painting':'What you paint';
+  layer='abc';
+  if(!quiet){buildKb();render()}
+}
+$('d-write').onclick=()=>setDir('write');$('d-read').onclick=()=>setDir('read');
+function setMode(m){S.mode=m;setPressed('m-cols',m==='cols');setPressed('m-spine',m==='spine');render()}
+$('m-cols').onclick=()=>setMode('cols');$('m-spine').onclick=()=>setMode('spine');
+$('t-hand').onclick=function(){S.hand=!S.hand;setPressed('t-hand',S.hand);this.textContent=S.hand?'Hand ✓':'Hand';render()};
+$('t-lat').onclick=function(){S.lat=!S.lat;setPressed('t-lat',S.lat);this.textContent=S.lat?'Glyph IDs ✓':'Glyph IDs';render()};
+$('t-noise').onclick=function(){S.noise=!S.noise;setPressed('t-noise',S.noise);this.textContent=S.noise?'Decoys ✓':'Decoys';render()};
+$('showkey').onclick=function(){const k=$('key'),v=k.type==='password';k.type=v?'text':'password';setPressed('showkey',v);this.textContent=v?'Hide':'Show'};
+let keyJob=0;
+async function applyKey(){
+  const job=++keyJob;S.pass=$('key').value;
+  if(!S.pass){S.R=S.T=null}
+  else{const [R,T]=await Promise.all([buildRaetsel(S.pass),buildTresor(S.pass)]);if(job!==keyJob)return;S.R=R;S.T=T}
+  S.buf=[];refreshKeyUI();buildSheet();buildKb();render();
+}
+$('key').addEventListener('input',applyKey);
+$('newkey').onclick=()=>{
+  const words=['fluss','linie','rot','spur','faden','zeichen','stille','atem','kreuz','pfeil','punkt','weg','tau','asche','kern','bogen'];
+  const a=new Uint32Array(5);try{crypto.getRandomValues(a)}catch(e){for(let i=0;i<5;i++)a[i]=Math.floor(Math.random()*4294967296)}
+  const p=[0,1,2].map(i=>words[a[i]%words.length]).join('-')+'-'+(1000+a[3]%9000)+'-'+words[a[4]%words.length];
+  const k=$('key');k.value=p;k.type='text';setPressed('showkey',true);$('showkey').textContent='Hide';applyKey();
+};
+$('clear').onclick=()=>{if(S.dir==='read')S.buf=[];else{ta.value='';sel={s:0,e:0}}render()};
+$('copy').onclick=()=>{const v=S.dir==='read'?$('readout').textContent:ta.value;try{navigator.clipboard.writeText(v).then(()=>{$('status').textContent='Copied'},()=>{})}catch(e){}};
+
+// ---------- plain chart ----------
+const groups=[
+ ['Vowels','Figures that sit on the spine: A points up, E crosses it, O is a diamond, U a cup, I a short bar between two dots.',['A','E','I','O','U']],
+ ['Umlauts','The vowel plus two dots set wide on either side.',['Ä','Ö','Ü']],
+ ['Consonants','Built from crossbars. The number of bars, their length and their ends (ticks, forks, hooks, meanders) tell them apart.',['B','C','D','F','G','H','J','K','L','M','N','P','Q','R','S','T','V','W','X','Y','Z','ß']],
+ ['Numbers','One-sided marks on the spine with a single dot opposite, in a shuffled order.',['0','1','2','3','4','5','6','7','8','9']],
+ ['Marks','Punctuation leaves the spine. The four-dot figure (·) only appears in Rätsel and Tresor.',['.',',','?','!',':','-','_']]
+];
+$('chart').innerHTML=groups.map(([t,d,cs])=>`<div class="group"><div class="label">${t}</div><p>${d}</p><div class="grid">${cs.map(c=>{
+  const g=G[c],sp=g&&!g.ns?'<line x1="30" y1="2" x2="30" y2="38" stroke-width="2"/>':'';
+  return `<div class="cell"><svg viewBox="0 0 60 40" fill="none" stroke="var(--red)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${sp}${glyphMarkup(c,0,c.charCodeAt(0)*7,true)}</svg><b>${label(c)}</b></div>`}).join('')}</div></div>`).join('');
+
+// ---------- start ----------
+let savedText=null,savedLevel=null;try{savedText=localStorage.getItem('spina-text');savedLevel=localStorage.getItem('spina-level')}catch(e){}
+ta.value=savedText?savedText:'Die Hand weiß, was der Kopf noch sucht.';
+sel={s:ta.value.length,e:ta.value.length};
+setLevel(savedLevel&&['plain','raetsel','tresor'].includes(savedLevel)?savedLevel:'raetsel');
+
+window.__spina={buildRaetsel,raetselEncrypt,raetselDecrypt,raetselPlain,buildTresor,tresorEncrypt,tresorDecrypt,toPlain,show,RI};
+})();
+</script>
+</body>
+</html>
